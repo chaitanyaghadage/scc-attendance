@@ -1,0 +1,245 @@
+<!-- Sadguru Coaching Attendance System with Google Sheets Integration -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SCC Attendance</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f0f2f5;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    h2, h3, h4 {
+      text-align: center;
+      color: #d32f2f;
+    }
+    input, button, select {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    button {
+      background: #d32f2f;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    table, th, td {
+      border: 1px solid #ccc;
+    }
+    th, td {
+      padding: 10px;
+      text-align: center;
+    }
+    #dashboard { display: none; }
+    .header-logo {
+      text-align: center;
+    }
+    .header-logo img {
+      width: 120px;
+      margin-bottom: 10px;
+    }
+    .flex {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+    }
+    .right {
+      float: right;
+      margin-top: -40px;
+    }
+    .message {
+      text-align: center;
+      color: green;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header-logo">
+      <img src="Master (2).png" alt="Sadguru Coaching Logo" />
+      <h2>Sadguru Coaching Classes</h2>
+      <p style="color: #333; margin-top: -10px;">A Bright Future Begins Here</p>
+    </div>
+
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+
+    <div id="dashboard">
+      <div class="flex">
+        <h3>Receptionist Panel</h3>
+        <button class="right" onclick="downloadMatrixCSV()">⬇️ Download CSV (Matrix)</button>
+      </div>
+
+      <h4>User List</h4>
+      <input type="text" id="searchUser" placeholder="Search user by name or ID" onkeyup="searchUsers()">
+      <select id="userSelect"></select>
+      <button onclick="markAttendance()">Mark Attendance</button>
+
+      <h4>Add New User</h4>
+      <input type="text" id="newName" placeholder="Full Name">
+      <input type="text" id="newId" placeholder="User ID">
+      <select id="newRole">
+        <option value="Student">Student</option>
+        <option value="Teacher">Teacher</option>
+      </select>
+      <button onclick="addUser()">Add User</button>
+
+      <h4>Attendance Log (This Session)</h4>
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Time</th><th>Name</th><th>ID</th><th>Role</th></tr>
+        </thead>
+        <tbody id="attendanceTable"></tbody>
+      </table>
+      <div id="message" class="message"></div>
+    </div>
+  </div>
+
+  <script>
+    const receptionistUsername = "SCCADMIN";
+    const receptionistPassword = "SCC@75";
+    const googleScriptURL = "https://script.google.com/macros/s/AKfycbwJxLflqrkOUkuj658ZbCRnHp-Qh9Zn14PzAYYJF1u9YHMnmQ6fkeFVk7saZr2R9Zbo/exec";
+
+    let users = JSON.parse(localStorage.getItem("scc_users")) || [
+      { id: "STD001", name: "Anjali Patil", role: "Student" },
+      { id: "TEA001", name: "Mahesh Sir", role: "Teacher" }
+    ];
+
+    let attendanceLog = JSON.parse(localStorage.getItem("scc_attendance")) || [];
+
+    function saveData() {
+      localStorage.setItem("scc_users", JSON.stringify(users));
+      localStorage.setItem("scc_attendance", JSON.stringify(attendanceLog));
+    }
+
+    function login() {
+      const u = document.getElementById("username").value;
+      const p = document.getElementById("password").value;
+      if (u === receptionistUsername && p === receptionistPassword) {
+        document.getElementById("dashboard").style.display = "block";
+        document.querySelector("input[type='text']").style.display = "none";
+        document.querySelector("input[type='password']").style.display = "none";
+        document.querySelector("button").style.display = "none";
+        populateDropdown();
+        updateTable();
+      } else {
+        alert("Invalid credentials");
+      }
+    }
+
+    function populateDropdown(filteredUsers = users) {
+      const select = document.getElementById("userSelect");
+      select.innerHTML = "";
+      filteredUsers.forEach(user => {
+        const option = document.createElement("option");
+        option.value = user.id;
+        option.textContent = `${user.name} (${user.role})`;
+        select.appendChild(option);
+      });
+    }
+
+    function searchUsers() {
+      const search = document.getElementById("searchUser").value.toLowerCase();
+      const filtered = users.filter(u => u.name.toLowerCase().includes(search) || u.id.toLowerCase().includes(search));
+      populateDropdown(filtered);
+    }
+
+    function addUser() {
+      const name = document.getElementById("newName").value.trim();
+      const id = document.getElementById("newId").value.trim();
+      const role = document.getElementById("newRole").value;
+      if (!name || !id || !role) return alert("Please fill all fields");
+      if (users.some(u => u.id === id)) return alert("❌ This ID is already in use. Choose a unique ID.");
+      users.push({ id, name, role });
+      saveData();
+      populateDropdown();
+      alert("✅ User added successfully");
+      document.getElementById("newName").value = "";
+      document.getElementById("newId").value = "";
+    }
+
+    function markAttendance() {
+      const selectedId = document.getElementById("userSelect").value;
+      const user = users.find(u => u.id === selectedId);
+      const now = new Date();
+      const date = now.toISOString().split('T')[0];
+      const time = now.toLocaleTimeString();
+      const alreadyMarked = attendanceLog.find(e => e.id === user.id && e.date === date);
+      if (alreadyMarked) return alert("Attendance already marked today for this user.");
+      const entry = { date, time, name: user.name, id: user.id, role: user.role };
+      attendanceLog.push(entry);
+      saveData();
+      updateTable();
+      sendToGoogleSheets(entry);
+    }
+
+    function sendToGoogleSheets(entry) {
+      fetch(googleScriptURL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(entry)
+      }).then(() => {
+        document.getElementById("message").textContent = `✅ Synced to Google Sheets for ${entry.name}`;
+        setTimeout(() => document.getElementById("message").textContent = '', 3000);
+      });
+    }
+
+    function updateTable() {
+      const tbody = document.getElementById("attendanceTable");
+      tbody.innerHTML = "";
+      attendanceLog.forEach(entry => {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${entry.date}</td><td>${entry.time}</td><td>${entry.name}</td><td>${entry.id}</td><td>${entry.role}</td>`;
+        tbody.appendChild(row);
+      });
+    }
+
+    function downloadMatrixCSV() {
+      const allDates = [...new Set(attendanceLog.map(e => e.date))].sort();
+      const matrix = users.map(u => {
+        const row = { name: u.name, id: u.id, role: u.role };
+        allDates.forEach(date => {
+          row[date] = attendanceLog.find(a => a.id === u.id && a.date === date) ? "✅" : "";
+        });
+        return row;
+      });
+
+      let csv = "Name,ID,Role," + allDates.join(",") + "\n";
+      matrix.forEach(row => {
+        csv += `${row.name},${row.id},${row.role},` + allDates.map(d => row[d]).join(",") + "\n";
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "SCC_Attendance_Matrix.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
